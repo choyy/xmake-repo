@@ -1,9 +1,7 @@
 name: Linux (arm64)
 
 on:
-  pull_request:
-    branches:
-      - dev
+  workflow_dispatch:
 
 jobs:
   build:
