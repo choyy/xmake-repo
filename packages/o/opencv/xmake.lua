@@ -5,6 +5,7 @@ package("opencv")
 
     add_urls("https://github.com/opencv/opencv/archive/$(version).tar.gz",
              "https://github.com/opencv/opencv.git")
+    add_versions("5.0.0", "b0528f5a1d379d59d4701cb28c36e22214cc51cf64594e5b56f2d3e6c0233095")
     add_versions("4.14.0", "ee8fb9b30eb60850431b4656447080e3737b56e45719c92b67f245950609f86e")
     add_versions("4.13.0", "1d40ca017ea51c533cf9fd5cbde5b5fe7ae248291ddf2af99d4c17cf8e13017d")
     add_versions("4.12.0", "44c106d5bb47efec04e531fd93008b3fcd1d27138985c5baf4eafac0e1ec9e9d")
@@ -23,7 +24,9 @@ package("opencv")
 
     add_patches("4.11.0", "https://github.com/opencv/opencv/commit/767dd838d3074409fd72a4d76c320b1370e95943.diff", "376dd90500ab7205084fd4298ff26137ce9678b00233ad20ca2189ef9eca3a58")
     add_patches("4.12.0", "https://github.com/opencv/opencv/pull/27691/commits/90c444abd387ffa70b2e72a34922903a2f0f4f5a.patch", "4811cf490195a7b2952e075c4d713593326bc54fcfa42a33e19d7ed025bb5b6f")
+    add_patches("5.0.0", "https://github.com/opencv/opencv/pull/29425.patch", "680acc58dee3fbfbdeb9c971455d46c0e88980b1fb47768892d83d3025f397d7")
 
+    add_resources("5.0.0", "opencv_contrib", "https://github.com/opencv/opencv_contrib/archive/5.0.0.tar.gz", "c58f6344170c39abf187c56f3843b59cab1fd3e89cf19ba2ce25dc061659b27f")
     add_resources("4.14.0", "opencv_contrib", "https://github.com/opencv/opencv_contrib/archive/4.14.0.tar.gz", "4f17abd1bc7f88e19c3380c8de7cbf2d863aced5b5ee8d8934cc7902b67d42c9")
     add_resources("4.13.0", "opencv_contrib", "https://github.com/opencv/opencv_contrib/archive/4.13.0.tar.gz", "1e0077a4fd2960a7d2f4c9e49d6ba7bb891cac2d1be36d7e8e47aa97a9d1039b")
     add_resources("4.12.0", "opencv_contrib", "https://github.com/opencv/opencv_contrib/archive/4.12.0.tar.gz", "4197722b4c5ed42b476d42e29beb29a52b6b25c34ec7b4d589c3ae5145fee98e")
@@ -40,17 +43,17 @@ package("opencv")
     add_resources("4.2.0", "opencv_contrib", "https://github.com/opencv/opencv_contrib/archive/4.2.0.tar.gz", "8a6b5661611d89baa59a26eb7ccf4abb3e55d73f99bb52d8f7c32265c8a43020")
     add_resources("3.4.9", "opencv_contrib", "https://github.com/opencv/opencv_contrib/archive/3.4.9.tar.gz", "dc7d95be6aaccd72490243efcec31e2c7d3f21125f88286186862cf9edb14a57")
 
-    add_configs("bundled", {description = "Build 3rd-party libraries with OpenCV.", default = true, type = "boolean"})
-    add_configs("tesseract", {description = "Enable tesseract on text module", default = false, type = "boolean"})
+    add_configs("bundled", {description = "Build 3rd-party libraries with OpenCV.", default = false, type = "boolean"})
+    add_configs("freetype", {description = "Enable freetype module", default = true, type = "boolean"})
+    add_configs("hdf", {description = "Enable hdf module", default = true, type = "boolean"})
 
-    local features = {"1394", "vtk", "eigen", "ffmpeg", "gstreamer", "gtk", "ipp", "halide", "vulkan", "jasper", "openjpeg", "jpeg", "webp", "openexr", "opengl", "png", "tbb", "openmp", "tiff", "itt", "protobuf", "quirc", "obsensor"}
-    local default_features = {"eigen", "ffmpeg", "jpeg", "opengl", "png", "protobuf", "quirc", "webp", "tiff"}
+    local features = {"1394", "vtk", "eigen", "ffmpeg", "gstreamer", "gtk", "ipp", "halide", "vulkan", "jasper", "openjpeg", "jpeg", "webp", "openexr", "opengl", "png", "tbb", "openmp", "tiff", "itt", "protobuf", "quirc", "obsensor", "avif", "tesseract", "cuda"}
+    local default_features = {"eigen", "ffmpeg", "jpeg", "opengl", "png", "protobuf", "quirc", "webp", "tiff", "avif"}
 
     for _, feature in ipairs(features) do
         add_configs(feature, {description = "Include " .. feature .. " support.", default = table.contains(default_features, feature), type = "boolean"})
     end
     add_configs("blas", {description = "Set BLAS vendor.", values = {"mkl", "openblas"}})
-    add_configs("cuda", {description = "Enable CUDA support.", default = false, type = "boolean"})
     add_configs("dynamic_parallel", {description = "Dynamically load parallel runtime (TBB etc.).", default = false, type = "boolean"})
 
     if is_plat("macosx") then
@@ -116,8 +119,13 @@ package("opencv")
             package:add("linkdirs", path.join("sdk/native/3rdparty/libs", package:targetarch()))
             package:add("includedirs", "sdk/native/jni/include")
         elseif package:version():ge("4.0") then
-            package:add("includedirs", "include/opencv4")
-            package:add("linkdirs", "lib", "lib/opencv4/3rdparty")
+            package:add("includedirs", "include/opencv4", "include/opencv5")
+            package:add("linkdirs", "lib", "lib/opencv4/3rdparty", "lib/opencv5/3rdparty")
+        end
+
+        if not package:is_precompiled() then
+            package:add("deps", "cmake", "python 3.x", {kind = "binary"})
+            package:add("deps", "gflags", "glog")
         end
         if package:config("blas") then
             package:add("deps", package:config("blas"))
@@ -135,18 +143,39 @@ package("opencv")
                 package:add("deps", "gtk3", {optional = true})
             end
         end
-        if not package:is_precompiled() then
-            package:add("deps", "cmake", "python 3.x", {kind = "binary"})
-        end
-
         if package:config("tesseract") then
             package:add("deps", "tesseract 4.1.3") -- OpenCV need tesseract from the v4 series
         end
         if package:config("eigen") then
             package:add("deps", "eigen")
         end
-        if package:config("tbb") then
-            package:add("deps", "tbb", {debug = package:is_debug()})
+        if package:config("avif") then
+            package:add("deps", "libavif")
+        end
+        if package:config("freetype") then
+            package:add("deps", "freetype", "harfbuzz")
+        end
+        if package:config("hdf") then
+            package:add("deps", "hdf5")
+        end
+        if not package:config("bundled") then
+            package:add("deps", "ade", "flatbuffers", "zlib")
+            local deps = {
+                {"tbb",      "tbb"},
+                {"jpeg",     "libjpeg-turbo"},
+                {"png",      "libpng"},
+                {"webp",     "libwebp", {configs = {libwebpmux = true}}},
+                {"tiff",     "libtiff"},
+                {"openjpeg", "openjpeg"},
+                {"openexr",  "openexr"},
+                {"jasper",   "jasper"},
+                {"protobuf", "protobuf-cpp"},
+            }
+            for _, dep in ipairs(deps) do
+                if package:config(dep[1]) then
+                    package:add("deps", table.unpack(dep, 2))
+                end
+            end
         end
     end)
 
@@ -163,36 +192,53 @@ package("opencv")
 
     on_install("android", "linux", "macosx", "windows", "mingw@windows,msys", function (package)
         io.replace("cmake/OpenCVUtils.cmake", "if(PKG_CONFIG_FOUND OR PkgConfig_FOUND)", "if(NOT WIN32 AND (PKG_CONFIG_FOUND OR PkgConfig_FOUND))", {plain = true})
-        local configs = {"-DCMAKE_OSX_DEPLOYMENT_TARGET=",
-                         "-DBUILD_PERF_TESTS=OFF",
-                         "-DBUILD_TESTS=OFF",
-                         "-DBUILD_opencv_hdf=OFF",
-                         "-DBUILD_opencv_java=OFF",
-                         "-DBUILD_opencv_text=ON",
-                         "-DOPENCV_ENABLE_NONFREE=ON",
-                         "-DOPENCV_GENERATE_PKGCONFIG=ON",
-                         "-DBUILD_opencv_python2=OFF",
-                         "-DBUILD_opencv_python3=OFF",
-                         "-DBUILD_JAVA=OFF"}
+        local configs = {
+            "-DCMAKE_OSX_DEPLOYMENT_TARGET=",
+            "-DBUILD_PERF_TESTS=OFF",
+            "-DBUILD_TESTS=OFF",
+            "-DBUILD_opencv_java=OFF",
+            "-DBUILD_opencv_text=ON",
+            "-DOPENCV_ENABLE_NONFREE=ON",
+            "-DOPENCV_GENERATE_PKGCONFIG=ON",
+            "-DBUILD_opencv_python2=OFF",
+            "-DBUILD_opencv_python3=OFF",
+            "-DBUILD_JAVA=OFF",
+            "-Dade_DIR=ON",
+        }
         local packagedeps = {}
 
-        if package:config("tesseract") then
-            table.insert(configs, "-DWITH_TESSERACT=ON")
-        end
+        table.insert(configs, "-DBUILD_opencv_freetype=" .. (package:config("freetype") and "ON" or "OFF"))
+        table.insert(configs, "-DBUILD_opencv_hdf=" .. (package:config("hdf") and "ON" or "OFF"))
         if package:config("bundled") then
             table.insert(configs, "-DOPENCV_FORCE_3RDPARTY_BUILD=ON")
+        else
+            io.replace("cmake/OpenCVDetectFlatbuffers.cmake",
+                [[ocv_add_external_target(flatbuffers "${OpenCV_SOURCE_DIR}/3rdparty/flatbuffers/include" "" "HAVE_FLATBUFFERS=1")]],
+                [[find_package(flatbuffers CONFIG REQUIRED)
+                  ocv_add_external_target(flatbuffers "" "flatbuffers::flatbuffers" "HAVE_FLATBUFFERS=1")]], {plain = true})
+            local flatc = path.join(package:dep("flatbuffers"):installdir(), "bin", package:is_plat("windows", "mingw") and "flatc.exe" or "flatc")
+            os.vrunv(flatc, {"--cpp", "-o", "modules/dnn/misc/tflite", "modules/dnn/src/tflite/schema.fbs"})
+
+            table.insert(configs, "-DBUILD_ZLIB=OFF")
+            table.insert(configs, "-DBUILD_ITT=OFF")
+            for _, feature in ipairs({"jpeg", "png", "tiff", "webp", "openjpeg", "openexr", "jasper", "tbb"}) do
+                if package:config(feature) then
+                    table.insert(configs, "-DBUILD_" .. feature:upper() .. "=OFF")
+                end
+            end
+            if package:config("protobuf") then
+                table.insert(configs, "-DBUILD_PROTOBUF=OFF")
+                table.insert(configs, "-DPROTOBUF_UPDATE_FILES=ON")
+            end
+            if not package:config("blas") then
+                table.insert(configs, "-DWITH_LAPACK=OFF")
+            end
         end
         for _, feature in ipairs(features) do
             table.insert(configs, "-DWITH_" .. feature:upper() .. "=" .. (package:config(feature) and "ON" or "OFF"))
         end
-        if package:config("cuda") then
-            table.insert(configs, "-DWITH_CUDA=ON")
-        end
         if package:config("eigen") then
             table.insert(packagedeps, "eigen")
-        end
-        if package:config("tbb") then
-            table.insert(configs, "-DBUILD_TBB=OFF")
         end
 
         table.insert(configs, "-DPARALLEL_ENABLE_PLUGINS=" .. (package:config("dynamic_parallel") and "ON" or "OFF"))
@@ -266,15 +312,15 @@ package("opencv")
         for _, link in ipairs({"opencv_phase_unwrapping", "opencv_surface_matching", "opencv_saliency",
                                "opencv_wechat_qrcode", "opencv_mcc", "opencv_face",
                                "opencv_img_hash", "opencv_videostab", "opencv_structured_light", "opencv_intensity_transform",
-                               "opencv_ccalib", "opencv_line_descriptor", "opencv_stereo", "opencv_dnn_objdetect", "opencv_dnn_superres",
-                               "opencv_fuzzy", "opencv_hfs", "opencv_rapid", "opencv_bgsegm", "opencv_bioinspired", "opencv_rgbd",
+                               "opencv_calib", "opencv_line_descriptor", "opencv_stereo", "opencv_dnn_objdetect", "opencv_dnn_superres",
+                               "opencv_fuzzy", "opencv_geometry", "opencv_ptcloud", "opencv_hfs", "opencv_rapid", "opencv_bgsegm", "opencv_bioinspired", "opencv_rgbd",
                                "opencv_dpm", "opencv_aruco", "opencv_reg", "opencv_tracking", "opencv_datasets", "opencv_xfeatures2d",
                                "opencv_shape", "opencv_barcode", "opencv_superres", "opencv_viz", "opencv_plot", "opencv_quality",
-                               "opencv_text", "opencv_cudaoptflow", "opencv_optflow", "opencv_ximgproc", "opencv_xobjdetect",
+                               "opencv_text", "opencv_hdf", "opencv_cudaoptflow", "opencv_optflow", "opencv_ximgproc", "opencv_xobjdetect",
                                "opencv_xphoto", "opencv_stitching", "opencv_ml", "opencv_photo", "opencv_cudaobjdetect", "opencv_cudalegacy",
                                "opencv_cudabgsegm", "opencv_cudafeatures2d", "opencv_cudastereo", "opencv_cudaimgproc", "opencv_cudafilters",
                                "opencv_cudaarithm", "opencv_cudawarping", "opencv_cudacodec", "opencv_cudev", "opencv_gapi", "opencv_objdetect",
-                               "opencv_highgui", "opencv_videoio", "opencv_video", "opencv_calib3d", "opencv_dnn", "opencv_features2d",
+                               "opencv_highgui", "opencv_videoio", "opencv_video", "opencv_calib3d", "opencv_dnn", "opencv_features2d", "opencv_features",
                                "opencv_flann", "opencv_imgcodecs", "opencv_imgproc", "opencv_core", "kleidicv_hal", "kleidicv_thread", "kleidicv"}) do
             local reallink = link
             if package:is_plat("windows", "mingw") then
@@ -355,6 +401,6 @@ package("opencv")
                 cv::Mat image(3, 3, CV_8UC1);
                 std::cout << CV_VERSION << std::endl;
             }
-        ]]}, {configs = {languages = "c++11"},
+        ]]}, {configs = {languages = package:version():ge("5.0") and "c++17" or "c++11"},
               includes = package:version():ge("4.0") and "opencv2/opencv.hpp" or "opencv/cv.h"}))
     end)
